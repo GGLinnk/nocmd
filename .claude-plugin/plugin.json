@@ -1,0 +1,16 @@
+{
+  "name": "nocmd",
+  "version": "0.1.0",
+  "description": "PreToolUse Bash hook that redirects discouraged shell commands to Claude's dedicated tools and to configured MCP servers; configurable via .nocmd TOML groups.",
+  "author": {
+    "name": "Gabriel GRONDIN"
+  },
+  "license": "MIT",
+  "keywords": [
+    "hook",
+    "pretooluse",
+    "bash",
+    "mcp",
+    "guard"
+  ]
+}

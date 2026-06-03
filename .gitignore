@@ -2,3 +2,5 @@ target/
 .nocmd
 *.pdb
 .serena/
+/bin/
+/dist/
