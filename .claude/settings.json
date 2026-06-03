@@ -1,5 +1,5 @@
 {
   "enabledPlugins": {
-    "nocmd@nocmd": true
+    "nocmd@nocmd": false
   }
 }
