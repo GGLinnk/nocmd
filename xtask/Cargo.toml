@@ -1,0 +1,12 @@
+[package]
+name = "xtask"
+description = "Workspace packaging tasks for the nocmd Claude Code plugin."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+clap = { workspace = true }
+zip = "2"
