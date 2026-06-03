@@ -85,28 +85,25 @@ pub struct RawGroup {
 
 /// Errors surfaced while loading `.nocmd` files. The hook itself fails open and
 /// ignores these; the `check`/`detect` CLI surfaces them.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum LoadError {
+    /// A `.nocmd` file or directory could not be read.
+    #[error("{}: {source}", path.display())]
     Io {
         path: PathBuf,
+        #[source]
         source: std::io::Error,
     },
+
+    /// A `.nocmd/*.toml` file did not parse.
+    #[error("{}: {source}", path.display())]
     Parse {
         path: PathBuf,
+        #[source]
         source: toml::de::Error,
     },
 }
-
-impl std::fmt::Display for LoadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LoadError::Io { path, source } => write!(f, "{}: {source}", path.display()),
-            LoadError::Parse { path, source } => write!(f, "{}: {source}", path.display()),
-        }
-    }
-}
-
-impl std::error::Error for LoadError {}
 
 /// Normalize a pattern key to lowercase, single-space-separated tokens so it
 /// matches the output of [`crate::parse::command_tokens`].

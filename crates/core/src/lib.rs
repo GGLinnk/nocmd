@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! `nocmd-core` — the command-gating engine behind the nocmd hook.
 //!
 //! Pipeline:

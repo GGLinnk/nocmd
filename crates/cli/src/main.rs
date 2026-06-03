@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! `nocmd` — a Claude Code PreToolUse hook for the Bash tool.
 //!
 //! With no subcommand this runs as the hook: it reads the PreToolUse event as
@@ -174,9 +175,5 @@ fn cmd_detect() -> ExitCode {
 }
 
 fn yesno(b: bool) -> &'static str {
-    if b {
-        "yes"
-    } else {
-        "no"
-    }
+    if b { "yes" } else { "no" }
 }

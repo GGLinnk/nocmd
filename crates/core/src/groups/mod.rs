@@ -9,7 +9,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::config::{normalize_pattern, Group, Requires};
+use crate::config::{Group, Requires, normalize_pattern};
 use crate::redirect::{Redirect, Tool};
 
 mod cargo_mcp;

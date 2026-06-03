@@ -142,10 +142,10 @@ fn read_capped(path: &Path) -> Option<String> {
 }
 
 fn collect_file(path: &Path, set: &mut BTreeSet<String>) {
-    if let Some(txt) = read_capped(path) {
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
-            add_servers(&v, set);
-        }
+    if let Some(txt) = read_capped(path)
+        && let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt)
+    {
+        add_servers(&v, set);
     }
 }
 
@@ -165,16 +165,16 @@ fn scan_mcp_servers(cwd: &Path) -> BTreeSet<String> {
     // User-level files.
     if let Some(home) = home_dir() {
         collect_file(&home.join(".claude").join("settings.json"), &mut set);
-        if let Some(txt) = read_capped(&home.join(".claude.json")) {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) {
-                add_servers(&v, &mut set);
-                // Per-project server lists keyed by absolute path.
-                if let Some(projects) = v.get("projects").and_then(|x| x.as_object()) {
-                    let target = norm_path(&cwd.to_string_lossy());
-                    for (k, pv) in projects {
-                        if norm_path(k) == target {
-                            add_servers(pv, &mut set);
-                        }
+        if let Some(txt) = read_capped(&home.join(".claude.json"))
+            && let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt)
+        {
+            add_servers(&v, &mut set);
+            // Per-project server lists keyed by absolute path.
+            if let Some(projects) = v.get("projects").and_then(|x| x.as_object()) {
+                let target = norm_path(&cwd.to_string_lossy());
+                for (k, pv) in projects {
+                    if norm_path(k) == target {
+                        add_servers(pv, &mut set);
                     }
                 }
             }
