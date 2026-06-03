@@ -1,0 +1,12 @@
+[package]
+name = "nocmd-core"
+description = "Command-gating engine for the nocmd hook: leading-program detection and TOML-configurable command groups."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }

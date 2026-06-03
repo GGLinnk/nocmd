@@ -1,0 +1,17 @@
+[package]
+name = "nocmd"
+description = "PreToolUse Bash hook for Claude Code that redirects/blocks discouraged shell commands; configurable via .nocmd TOML groups."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "nocmd"
+path = "src/main.rs"
+
+[dependencies]
+nocmd-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }

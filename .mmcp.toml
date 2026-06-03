@@ -1,0 +1,10 @@
+project_uuid = "019e8cf7-a2b9-7730-bd56-28e2a9fe1970"
+project_slug = "nocmd"
+
+[subscriptions]
+no_default_global = false
+auto_detect_languages = false
+languages = []
+groups = []
+memories = []
+tags = []
