@@ -48,19 +48,13 @@ fn group(name: &str, requires: Option<Requires>, commands: BTreeMap<String, Redi
     }
 }
 
-fn map<'a, V>(pairs: impl IntoIterator<Item = (&'a str, V)>) -> BTreeMap<String, Redirect>
-where
-    V: Into<Redirect>,
-{
-    pairs
-        .into_iter()
-        .map(|(pat, v)| (normalize_pattern(pat), v.into()))
-        .collect()
-}
-
 /// A group that redirects every command to one built-in [`Tool`].
 pub(crate) fn tool_group(name: &str, tool: Tool, commands: &[&str]) -> Group {
-    group(name, None, map(commands.iter().map(|&c| (c, tool))))
+    let commands = commands
+        .iter()
+        .map(|&c| (normalize_pattern(c), Redirect::Tool(tool)))
+        .collect();
+    group(name, None, commands)
 }
 
 /// A group of free-form advice redirects, with an optional `requires` clause.
@@ -109,10 +103,4 @@ pub(crate) fn req_cmd(cmd: &str) -> Option<Requires> {
         command: Some(cmd.to_string()),
         any: false,
     })
-}
-
-impl From<Tool> for Redirect {
-    fn from(tool: Tool) -> Self {
-        Redirect::Tool(tool)
-    }
 }

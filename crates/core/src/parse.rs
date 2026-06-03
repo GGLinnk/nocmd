@@ -11,6 +11,10 @@
 
 use std::collections::VecDeque;
 
+/// Maximum subcommand words collected after the program, covering patterns like
+/// `cargo build` and `git commit`.
+const MAX_SUBCOMMAND_TOKENS: usize = 2;
+
 /// Split a command line into quote-aware words: whitespace separates words,
 /// but whitespace inside `"..."` or `'...'` is preserved and the quotes are
 /// removed. This keeps a quoted program path with spaces
@@ -116,7 +120,7 @@ pub fn command_tokens(command: &str) -> Vec<String> {
 
     // Up to two trailing subcommand words (stops at the first flag/path/operator).
     let mut tokens = vec![program];
-    for word in words.iter().take(2) {
+    for word in words.iter().take(MAX_SUBCOMMAND_TOKENS) {
         match subcommand(word) {
             Some(sub) => tokens.push(sub),
             None => break,

@@ -60,16 +60,11 @@ impl Detect {
 
     /// Whether `name` resolves to an executable on `PATH`.
     pub fn has_command(&self, name: &str) -> bool {
-        for dir in &self.path_dirs {
-            for ext in &self.exe_exts {
-                let mut file = name.to_string();
-                file.push_str(ext);
-                if dir.join(&file).is_file() {
-                    return true;
-                }
-            }
-        }
-        false
+        self.path_dirs.iter().any(|dir| {
+            self.exe_exts
+                .iter()
+                .any(|ext| dir.join(format!("{name}{ext}")).is_file())
+        })
     }
 
     /// Iterate the detected MCP server names (sorted).
