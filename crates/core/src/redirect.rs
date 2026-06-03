@@ -1,8 +1,8 @@
 //! What a blocked command should be done with instead.
 //!
-//! The deny message is *derived* from these types (see [`Redirect::describe`]),
-//! not assembled from string templates — so adding a redirect target is a new
-//! enum variant the compiler forces every match to handle.
+//! The deny message is derived from these types (see [`Redirect::describe`]):
+//! adding a redirect target is a new enum variant the compiler forces every
+//! match arm to handle.
 
 use serde::Deserialize;
 

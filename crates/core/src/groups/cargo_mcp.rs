@@ -1,4 +1,4 @@
-//! `cargo-mcp` pack — active when a configured MCP server name contains
+//! `cargo-mcp` pack - active when a configured MCP server name contains
 //! `cargo`. Redirects each `cargo <sub>` to the matching MCP tool suffix; the
 //! server name is filled in at render time (`mcp__cargo-mcp__cargo_build`).
 

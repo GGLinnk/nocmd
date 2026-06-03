@@ -10,7 +10,7 @@ use crate::parse::command_tokens;
 /// The outcome of evaluating a Bash command line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Decision {
-    /// No active group matched — let the call proceed through the normal flow.
+    /// No active group matched - let the call proceed through the normal flow.
     Allow,
     /// A group matched: the call should be denied with this reason.
     Deny {

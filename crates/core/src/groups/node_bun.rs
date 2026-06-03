@@ -1,4 +1,4 @@
-//! `node-bun` pack — active when `bun` is on `PATH`. Nudges Node.js tooling
+//! `node-bun` pack - active when `bun` is on `PATH`. Nudges Node.js tooling
 //! toward the (installed) bun equivalents.
 
 use crate::config::Group;

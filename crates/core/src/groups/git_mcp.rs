@@ -1,4 +1,4 @@
-//! `git-mcp` pack — active when a configured MCP server name contains `git`.
+//! `git-mcp` pack - active when a configured MCP server name contains `git`.
 //! Tool names vary between git MCP servers, so this redirects to the server
 //! generically (`McpServer`) rather than guessing a specific tool.
 

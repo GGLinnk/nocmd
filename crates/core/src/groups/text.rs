@@ -1,4 +1,4 @@
-//! `text` — always on. Text-processing commands with no single dedicated tool;
+//! `text` - always on. Text-processing commands with no single dedicated tool;
 //! point at the closest combination instead.
 
 use crate::config::Group;

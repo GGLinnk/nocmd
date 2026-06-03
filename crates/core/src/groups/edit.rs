@@ -1,4 +1,4 @@
-//! `edit` — always on. Redirect in-place stream editing to the Edit tool.
+//! `edit` - always on. Redirect in-place stream editing to the Edit tool.
 
 use crate::config::Group;
 use crate::redirect::Tool;

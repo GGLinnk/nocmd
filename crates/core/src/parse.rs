@@ -1,6 +1,6 @@
 //! Extract the program (and any subcommand words) a Bash command line invokes.
 //!
-//! Only the *leading* command is inspected — piped filters such as
+//! Only the *leading* command is inspected - piped filters such as
 //! `cmake --build . | grep error` are intentionally left alone, because the
 //! dedicated tools cannot filter another command's stdout.
 //!
@@ -76,7 +76,7 @@ fn normalize_program(word: &str) -> Option<String> {
     (!name.is_empty() && name != ".").then(|| name.to_string())
 }
 
-/// Interpret `word` as a bare subcommand (`build`, `commit`, …): it must start
+/// Interpret `word` as a bare subcommand (`build`, `commit`, ...): it must start
 /// with a letter; the leading `[A-Za-z0-9_-]` run is taken (lowercased).
 fn subcommand(word: &str) -> Option<String> {
     if !word.starts_with(|c: char| c.is_ascii_alphabetic()) {

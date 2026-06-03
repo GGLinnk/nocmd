@@ -6,7 +6,7 @@
 //! a target command is on `PATH`).
 //!
 //! TOML groups describe their redirects with typed fields rather than free-form
-//! messages — see [`RawGroup`] and the `.nocmd/groups.toml` example.
+//! messages - see [`RawGroup`] and the `.nocmd/groups.toml` example.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -54,10 +54,10 @@ pub struct RawConfig {
 /// TOML shape for a single `[groups.<name>]` table.
 ///
 /// A group picks how it redirects via one or more of these fields:
-///   * `tool` + `commands` — redirect each command to a built-in Claude tool.
-///   * `server = true` + `commands` — redirect to the MCP server generically.
-///   * `[groups.<name>.mcp]` — map each pattern to an MCP tool *suffix*.
-///   * `[groups.<name>.advice]` — map each pattern to free-form guidance.
+///   * `tool` + `commands` - redirect each command to a built-in Claude tool.
+///   * `server = true` + `commands` - redirect to the MCP server generically.
+///   * `[groups.<name>.mcp]` - map each pattern to an MCP tool *suffix*.
+///   * `[groups.<name>.advice]` - map each pattern to free-form guidance.
 #[derive(Debug, Default, Deserialize)]
 pub struct RawGroup {
     /// Built-in tool that `commands` redirect to.
@@ -78,7 +78,7 @@ pub struct RawGroup {
     pub enabled: Option<bool>,
     /// Convenience inverse of `enabled`.
     pub disabled: Option<bool>,
-    /// Pattern keys to remove from a (built-in) group — e.g. to re-allow `cat`.
+    /// Pattern keys to remove from a (built-in) group - e.g. to re-allow `cat`.
     #[serde(default)]
     pub remove: Vec<String>,
 }

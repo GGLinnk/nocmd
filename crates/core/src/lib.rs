@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! `nocmd-core` — the command-gating engine behind the nocmd hook.
+//! `nocmd-core` - the command-gating engine behind the nocmd hook.
 //!
 //! Pipeline:
 //!   1. [`parse::command_tokens`] turns a Bash command line into normalized

@@ -1,4 +1,4 @@
-//! `glob` — always on. Redirect file-finding commands to the Glob tool.
+//! `glob` - always on. Redirect file-finding commands to the Glob tool.
 
 use crate::config::Group;
 use crate::redirect::Tool;

@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! `nocmd` — a Claude Code PreToolUse hook for the Bash tool.
+//! `nocmd` - a Claude Code PreToolUse hook for the Bash tool.
 //!
 //! With no subcommand this runs as the hook: it reads the PreToolUse event as
 //! JSON on stdin and, if the leading command matches an active group, emits a

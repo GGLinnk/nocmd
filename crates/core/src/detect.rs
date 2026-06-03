@@ -3,11 +3,11 @@
 //! Two signals are gathered, both read fresh on each invocation (a PreToolUse
 //! hook is a short-lived process, so there is nothing to cache across calls):
 //!
-//!   * **MCP servers** — the *configured* server names found in the standard
+//!   * **MCP servers** - the *configured* server names found in the standard
 //!     Claude Code config files. A hook cannot enumerate the live tool list,
 //!     but it can read which servers a project/user has declared and match a
 //!     pack against them (e.g. a server whose name contains `cargo`).
-//!   * **PATH commands** — whether a redirect *target* (e.g. `bun`, `uv`) is
+//!   * **PATH commands** - whether a redirect *target* (e.g. `bun`, `uv`) is
 //!     actually installed, so we only nudge toward tools that exist.
 
 use std::collections::BTreeSet;
@@ -37,7 +37,7 @@ impl Detect {
         }
     }
 
-    /// An empty snapshot (nothing detected) — handy for tests and as a fallback.
+    /// An empty snapshot (nothing detected) - handy for tests and as a fallback.
     pub fn empty() -> Self {
         Detect {
             mcp: BTreeSet::new(),

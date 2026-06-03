@@ -1,4 +1,4 @@
-//! `read` — always on. Redirect file-dumping commands to the Read tool.
+//! `read` - always on. Redirect file-dumping commands to the Read tool.
 
 use crate::config::Group;
 use crate::redirect::Tool;
