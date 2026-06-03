@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use serde_json::json;
+use tracing::{debug, info};
+use tracing_subscriber::EnvFilter;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const SCOPE: &str = "@gglinnk";
@@ -36,6 +38,45 @@ const TARGETS: &[Target] = &[
     Target { key: "linux-arm64", os: "linux", cpu: "arm64", windows: false },
 ];
 
+/// Failures while generating the npm tree. Each variant names the offending
+/// path and chains the underlying cause.
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("git tag {tag} does not match the workspace version {expected}")]
+    TagMismatch { tag: String, expected: String },
+
+    #[error("creating directory {}: {source}", path.display())]
+    CreateDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("serializing JSON for {}: {source}", path.display())]
+    Serialize {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
+
+    #[error("writing {}: {source}", path.display())]
+    Write {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("copying {} to {}: {source}", from.display(), to.display())]
+    Copy {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
 #[derive(Parser)]
 #[command(name = "npmgen", about = "Generate the nocmd npm publish tree")]
 struct Cli {
@@ -47,16 +88,25 @@ struct Cli {
     tag: Option<String>,
 }
 
-type Fallible = Result<(), Box<dyn std::error::Error>>;
+fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_target(false)
+        .init();
 
-fn main() -> Fallible {
-    let cli = Cli::parse();
+    if let Err(error) = run(Cli::parse()) {
+        tracing::error!(%error, "npmgen failed");
+        std::process::exit(1);
+    }
+}
 
+fn run(cli: Cli) -> Result<()> {
     if let Some(tag) = &cli.tag {
         let expected = format!("v{VERSION}");
         if tag != &expected {
-            return Err(format!("tag {tag} does not match workspace version {expected}").into());
+            return Err(Error::TagMismatch { tag: tag.clone(), expected });
         }
+        debug!(tag, version = VERSION, "tag matches workspace version");
     }
 
     let root = workspace_root();
@@ -65,7 +115,13 @@ fn main() -> Fallible {
         write_platform(&cli.out, target)?;
     }
 
-    println!("generated {SCOPE}/{PLUGIN} {VERSION} ({} targets) in {}", TARGETS.len(), cli.out.display());
+    info!(
+        package = %format!("{SCOPE}/{PLUGIN}"),
+        version = VERSION,
+        targets = TARGETS.len(),
+        out = %cli.out.display(),
+        "generated npm publish tree",
+    );
     Ok(())
 }
 
@@ -78,68 +134,102 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn write_json(path: &Path, value: &serde_json::Value) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let mut text = serde_json::to_string_pretty(value)?;
-    text.push('\n');
-    fs::write(path, text)
+fn create_dir(path: &Path) -> Result<()> {
+    fs::create_dir_all(path).map_err(|source| Error::CreateDir {
+        path: path.to_path_buf(),
+        source,
+    })
 }
 
-fn write_meta(dir: &Path, root: &Path) -> Fallible {
-    fs::create_dir_all(dir)?;
+fn write_json(path: &Path, value: &serde_json::Value) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        create_dir(parent)?;
+    }
+    let mut text = serde_json::to_string_pretty(value).map_err(|source| Error::Serialize {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    text.push('\n');
+    fs::write(path, text).map_err(|source| Error::Write {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    debug!(path = %path.display(), "wrote config");
+    Ok(())
+}
+
+fn copy_file(from: &Path, to: &Path) -> Result<()> {
+    if let Some(parent) = to.parent() {
+        create_dir(parent)?;
+    }
+    fs::copy(from, to).map_err(|source| Error::Copy {
+        from: from.to_path_buf(),
+        to: to.to_path_buf(),
+        source,
+    })?;
+    debug!(from = %from.display(), to = %to.display(), "copied source file");
+    Ok(())
+}
+
+fn write_meta(dir: &Path, root: &Path) -> Result<()> {
+    create_dir(dir)?;
 
     let optional: serde_json::Map<String, serde_json::Value> = TARGETS
         .iter()
         .map(|t| (format!("{SCOPE}/{PLUGIN}-{}", t.key), json!(VERSION)))
         .collect();
 
-    let package = json!({
-        "name": format!("{SCOPE}/{PLUGIN}"),
-        "version": VERSION,
-        "description": DESCRIPTION,
-        "license": "MIT",
-        "author": AUTHOR,
-        "repository": { "type": "git", "url": REPOSITORY },
-        "files": [".claude-plugin", "hooks", "launch.mjs"],
-        "optionalDependencies": optional,
-        "publishConfig": { "access": "public" },
-    });
-    write_json(&dir.join("package.json"), &package)?;
-
-    let plugin = json!({
-        "name": PLUGIN,
-        "version": VERSION,
-        "description": DESCRIPTION,
-        "author": { "name": AUTHOR },
-        "license": "MIT",
-        "keywords": ["hook", "pretooluse", "bash", "mcp", "guard"],
-    });
-    write_json(&dir.join(".claude-plugin").join("plugin.json"), &plugin)?;
-
-    // Source files shipped verbatim inside the meta package.
-    fs::copy(root.join("launch.mjs"), dir.join("launch.mjs"))?;
-    fs::create_dir_all(dir.join("hooks"))?;
-    fs::copy(
-        root.join("hooks").join("hooks.json"),
-        dir.join("hooks").join("hooks.json"),
+    write_json(
+        &dir.join("package.json"),
+        &json!({
+            "name": format!("{SCOPE}/{PLUGIN}"),
+            "version": VERSION,
+            "description": DESCRIPTION,
+            "license": "MIT",
+            "author": AUTHOR,
+            "repository": { "type": "git", "url": REPOSITORY },
+            "files": [".claude-plugin", "hooks", "launch.mjs"],
+            "optionalDependencies": optional,
+            "publishConfig": { "access": "public" },
+        }),
     )?;
+
+    write_json(
+        &dir.join(".claude-plugin").join("plugin.json"),
+        &json!({
+            "name": PLUGIN,
+            "version": VERSION,
+            "description": DESCRIPTION,
+            "author": { "name": AUTHOR },
+            "license": "MIT",
+            "keywords": ["hook", "pretooluse", "bash", "mcp", "guard"],
+        }),
+    )?;
+
+    copy_file(&root.join("launch.mjs"), &dir.join("launch.mjs"))?;
+    copy_file(
+        &root.join("hooks").join("hooks.json"),
+        &dir.join("hooks").join("hooks.json"),
+    )?;
+    info!(dir = %dir.display(), "wrote meta package");
     Ok(())
 }
 
-fn write_platform(out: &Path, target: &Target) -> std::io::Result<()> {
+fn write_platform(out: &Path, target: &Target) -> Result<()> {
     let dir = out.join(format!("{PLUGIN}-{}", target.key));
-    fs::create_dir_all(&dir)?;
     let binary = if target.windows { "nocmd.exe" } else { "nocmd" };
-    let package = json!({
-        "name": format!("{SCOPE}/{PLUGIN}-{}", target.key),
-        "version": VERSION,
-        "description": format!("nocmd binary for {}.", target.key),
-        "license": "MIT",
-        "os": [target.os],
-        "cpu": [target.cpu],
-        "files": [binary],
-    });
-    write_json(&dir.join("package.json"), &package)
+    write_json(
+        &dir.join("package.json"),
+        &json!({
+            "name": format!("{SCOPE}/{PLUGIN}-{}", target.key),
+            "version": VERSION,
+            "description": format!("nocmd binary for {}.", target.key),
+            "license": "MIT",
+            "os": [target.os],
+            "cpu": [target.cpu],
+            "files": [binary],
+        }),
+    )?;
+    debug!(target = target.key, "wrote platform package");
+    Ok(())
 }
