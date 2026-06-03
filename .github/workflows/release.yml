@@ -69,14 +69,15 @@ jobs:
         run: cargo run --quiet --package npmgen -- --tag "$GITHUB_REF_NAME" --out dist/npm
       - name: Place binaries
         run: |
-          for k in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64 linux-arm64; do
-            cp artifacts/pkg-$k/nocmd* "dist/npm/nocmd-$k/"
-            [ -f "dist/npm/nocmd-$k/nocmd" ] && chmod +x "dist/npm/nocmd-$k/nocmd" || true
+          for dir in dist/npm/nocmd-*/; do
+            key="$(basename "$dir" | sed 's/^nocmd-//')"
+            cp "artifacts/pkg-$key/"nocmd* "$dir"
+            [ -f "${dir}nocmd" ] && chmod +x "${dir}nocmd" || true
           done
       - name: Publish platform packages
         run: |
-          for k in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64 linux-arm64; do
-            (cd "dist/npm/nocmd-$k" && npm publish --access public)
+          for dir in dist/npm/nocmd-*/; do
+            (cd "$dir" && npm publish --access public)
           done
       - name: Publish meta package
         run: cd dist/npm/nocmd && npm publish --access public
