@@ -8,7 +8,7 @@
 //! TOML groups describe their redirects with typed fields rather than free-form
 //! messages - see [`RawGroup`] and the `.nocmd/groups.toml` example.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -103,6 +103,35 @@ pub enum LoadError {
         #[source]
         source: toml::de::Error,
     },
+
+    /// A group's TOML fields are internally inconsistent (surfaced as a warning).
+    #[error("{}: group \"{group}\": {kind}", path.display())]
+    Misconfig {
+        path: PathBuf,
+        group: String,
+        kind: MisconfigKind,
+    },
+}
+
+/// The specific inconsistency found in a `[groups.<name>]` TOML table.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+pub enum MisconfigKind {
+    /// Both `tool` and `server` are set; each consumes `commands` differently.
+    #[error("sets both `tool` and `server`, which both consume `commands`")]
+    ConflictingStrategy,
+    /// A `tool`/`server` strategy is declared but `commands` is empty.
+    #[error("declares a redirect strategy but lists no `commands`")]
+    StrategyWithoutCommands,
+    /// `commands` is listed but no `tool`/`server` applies them.
+    #[error("lists `commands` but no `tool`/`server` to apply them to")]
+    CommandsWithoutStrategy,
+    /// A pattern is mapped in both `mcp` and `advice`.
+    #[error("pattern \"{pattern}\" appears in both `mcp` and `advice`")]
+    DuplicatePattern { pattern: String },
+    /// Both `enabled` and `disabled` are set.
+    #[error("sets both `enabled` and `disabled`")]
+    EnabledAndDisabled,
 }
 
 /// Normalize a pattern key to lowercase, single-space-separated tokens so it
@@ -119,21 +148,63 @@ fn raw_commands(rg: &RawGroup) -> BTreeMap<String, Redirect> {
     let mut commands = BTreeMap::new();
     if let Some(tool) = rg.tool {
         for c in &rg.commands {
-            commands.insert(normalize_pattern(c), Redirect::Tool(tool));
+            insert_pattern(&mut commands, c, Redirect::Tool(tool));
         }
     }
     if rg.server {
         for c in &rg.commands {
-            commands.insert(normalize_pattern(c), Redirect::McpServer);
+            insert_pattern(&mut commands, c, Redirect::McpServer);
         }
     }
     for (pat, suffix) in &rg.mcp {
-        commands.insert(normalize_pattern(pat), Redirect::Mcp(suffix.clone()));
+        insert_pattern(&mut commands, pat, Redirect::Mcp(suffix.clone()));
     }
     for (pat, advice) in &rg.advice {
-        commands.insert(normalize_pattern(pat), Redirect::Advice(advice.clone()));
+        insert_pattern(&mut commands, pat, Redirect::Advice(advice.clone()));
     }
     commands
+}
+
+/// Insert `redirect` under the normalized `pat`, skipping empty patterns: an
+/// all-whitespace key normalizes to "" and could never match a command.
+fn insert_pattern(commands: &mut BTreeMap<String, Redirect>, pat: &str, redirect: Redirect) {
+    let key = normalize_pattern(pat);
+    if !key.is_empty() {
+        commands.insert(key, redirect);
+    }
+}
+
+/// Report each internally inconsistent field combination in a raw group as a
+/// [`LoadError::Misconfig`] warning. Used at the `.nocmd` loading boundary.
+fn lint_group(name: &str, rg: &RawGroup, path: &Path, errs: &mut Vec<LoadError>) {
+    let mut problems: Vec<MisconfigKind> = Vec::new();
+    let has_command_strategy = rg.tool.is_some() || rg.server;
+
+    if rg.tool.is_some() && rg.server {
+        problems.push(MisconfigKind::ConflictingStrategy);
+    }
+    if has_command_strategy && rg.commands.is_empty() {
+        problems.push(MisconfigKind::StrategyWithoutCommands);
+    }
+    if !rg.commands.is_empty() && !has_command_strategy {
+        problems.push(MisconfigKind::CommandsWithoutStrategy);
+    }
+    if rg.enabled.is_some() && rg.disabled.is_some() {
+        problems.push(MisconfigKind::EnabledAndDisabled);
+    }
+    let advice_keys: BTreeSet<String> = rg.advice.keys().map(|k| normalize_pattern(k)).collect();
+    for pat in rg.mcp.keys() {
+        let key = normalize_pattern(pat);
+        if advice_keys.contains(&key) {
+            problems.push(MisconfigKind::DuplicatePattern { pattern: key });
+        }
+    }
+
+    errs.extend(problems.into_iter().map(|kind| LoadError::Misconfig {
+        path: path.to_path_buf(),
+        group: name.to_string(),
+        kind,
+    }));
 }
 
 impl Config {
@@ -201,7 +272,12 @@ impl Config {
         for file in files {
             match std::fs::read_to_string(&file) {
                 Ok(text) => match toml::from_str::<RawConfig>(&text) {
-                    Ok(raw) => self.merge_raw(raw),
+                    Ok(raw) => {
+                        for (name, rg) in &raw.groups {
+                            lint_group(name, rg, &file, errs);
+                        }
+                        self.merge_raw(raw);
+                    }
                     Err(source) => errs.push(LoadError::Parse { path: file, source }),
                 },
                 Err(source) => errs.push(LoadError::Io { path: file, source }),
@@ -295,5 +371,54 @@ mod tests {
         assert!(!read.commands.contains_key("cat"));
         let grep = c.groups.iter().find(|g| g.name == "grep").unwrap();
         assert_eq!(grep.enabled, Some(false));
+    }
+
+    #[test]
+    fn empty_patterns_are_skipped() {
+        let mut c = Config::builtin();
+        let raw: RawConfig = toml::from_str(
+            r#"
+            [groups.blank.advice]
+            "   " = "noop"
+        "#,
+        )
+        .unwrap();
+        c.merge_raw(raw);
+        let g = c.groups.iter().find(|g| g.name == "blank").unwrap();
+        assert!(g.commands.is_empty());
+    }
+
+    #[test]
+    fn lint_flags_conflicting_strategy_and_duplicate_pattern() {
+        let raw: RawConfig = toml::from_str(
+            r#"
+            [groups.bad]
+            tool = "read"
+            server = true
+            commands = ["x"]
+            [groups.bad.mcp]
+            foo = "f"
+            [groups.bad.advice]
+            foo = "use foo"
+        "#,
+        )
+        .unwrap();
+        let rg = raw.groups.get("bad").unwrap();
+        let mut errs = Vec::new();
+        lint_group("bad", rg, Path::new("test.toml"), &mut errs);
+        assert!(errs.iter().any(|e| matches!(
+            e,
+            LoadError::Misconfig {
+                kind: MisconfigKind::ConflictingStrategy,
+                ..
+            }
+        )));
+        assert!(errs.iter().any(|e| matches!(
+            e,
+            LoadError::Misconfig {
+                kind: MisconfigKind::DuplicatePattern { .. },
+                ..
+            }
+        )));
     }
 }

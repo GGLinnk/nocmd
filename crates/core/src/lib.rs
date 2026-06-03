@@ -17,7 +17,7 @@ pub mod groups;
 pub mod parse;
 pub mod redirect;
 
-pub use config::{Config, Group, LoadError, RawConfig, Requires};
+pub use config::{Config, Group, LoadError, MisconfigKind, RawConfig, Requires};
 pub use detect::Detect;
 pub use engine::{Decision, Engine};
 pub use parse::{command_tokens, leading_program};
