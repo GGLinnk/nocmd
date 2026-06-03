@@ -4,28 +4,61 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write
-
 jobs:
-  package:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: aarch64-apple-darwin
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: cargo xtask package --target ${{ matrix.target }}
-      - uses: softprops/action-gh-release@v2
+      - run: cargo build --release --target ${{ matrix.target }} --package nocmd
+      - name: Stage binary
+        shell: bash
+        run: |
+          mkdir -p staged
+          ext=""
+          [[ "${{ matrix.target }}" == *windows* ]] && ext=".exe"
+          cp "target/${{ matrix.target }}/release/nocmd$ext" "staged/nocmd-${{ matrix.target }}$ext"
+      - uses: actions/upload-artifact@v4
         with:
-          files: dist/*.zip
+          name: bin-${{ matrix.target }}
+          path: staged/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Assemble bin/
+        shell: bash
+        run: |
+          mkdir -p bin
+          find artifacts -type f -name 'nocmd-*' -exec cp {} bin/ \;
+          chmod +x bin/nocmd-* || true
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,20 @@
+{
+  "name": "@gglinnk/nocmd",
+  "version": "0.1.0",
+  "description": "PreToolUse Bash hook that redirects discouraged shell commands to Claude's dedicated tools and to configured MCP servers.",
+  "license": "MIT",
+  "author": "Gabriel GRONDIN",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gglinnk/nocmd.git"
+  },
+  "files": [
+    ".claude-plugin",
+    "hooks",
+    "launch.mjs",
+    "bin"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

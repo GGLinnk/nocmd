@@ -6,8 +6,10 @@
   "plugins": [
     {
       "name": "nocmd",
-      "source": "./",
-      "description": "PreToolUse Bash hook that redirects discouraged shell commands to Claude's dedicated tools and to configured MCP servers."
+      "source": {
+        "source": "npm",
+        "package": "@gglinnk/nocmd"
+      }
     }
   ]
 }

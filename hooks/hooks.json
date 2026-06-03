@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/nocmd"
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/launch.mjs"]
           }
         ]
       }
