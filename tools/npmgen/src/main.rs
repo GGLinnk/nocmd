@@ -1,9 +1,11 @@
 #![forbid(unsafe_code)]
 //! Generate the npm publish tree for the nocmd plugin: the meta package plus
-//! one package per platform. The version comes from this crate's
-//! `CARGO_PKG_VERSION` (the shared workspace version), so `Cargo.toml` is the
-//! single source of truth for the version, and `TARGETS` is the single source
-//! for the supported platforms.
+//! one package per platform. Everything identifying the package is read from
+//! Cargo.toml so it stays the single source of truth: version from
+//! `CARGO_PKG_VERSION`, author from `CARGO_PKG_AUTHORS`, description from
+//! `CARGO_PKG_DESCRIPTION`, and the npm scope, plugin name, and git URL all
+//! derived from `CARGO_PKG_REPOSITORY`. The supported platforms live in
+//! `TARGETS`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,11 +16,9 @@ use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const SCOPE: &str = "@gglinnk";
-const PLUGIN: &str = "nocmd";
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
-const REPOSITORY: &str = "git+https://github.com/gglinnk/nocmd.git";
-const DESCRIPTION: &str = "PreToolUse Bash hook that redirects discouraged shell commands to Claude's dedicated tools and to configured MCP servers.";
+const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
+const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 
 /// A supported platform: the npm key (`<process.platform>-<process.arch>`) plus
 /// the npm `os`/`cpu` install filters.
@@ -38,10 +38,22 @@ const TARGETS: &[Target] = &[
     Target { key: "linux-arm64", os: "linux", cpu: "arm64", windows: false },
 ];
 
+/// Package identity derived from the repository URL: the npm scope (`@owner`),
+/// the plugin and binary name (repo basename), and the npm git URL. Assumes the
+/// npm scope matches the repository owner.
+struct Identity {
+    scope: String,
+    plugin: &'static str,
+    git_url: String,
+}
+
 /// Failures while generating the npm tree. Each variant names the offending
 /// path and chains the underlying cause.
 #[derive(Debug, thiserror::Error)]
 enum Error {
+    #[error("[workspace.package] repository must be set to https://<host>/<owner>/<repo>")]
+    MissingRepository,
+
     #[error("git tag {tag} does not match the workspace version {expected}")]
     TagMismatch { tag: String, expected: String },
 
@@ -109,20 +121,46 @@ fn run(cli: Cli) -> Result<()> {
         debug!(tag, version = VERSION, "tag matches workspace version");
     }
 
+    let id = identity()?;
     let root = workspace_root();
-    write_meta(&cli.out.join(PLUGIN), &root)?;
+    write_meta(&cli.out.join(id.plugin), &root, &id)?;
     for target in TARGETS {
-        write_platform(&cli.out, target)?;
+        write_platform(&cli.out, target, &id)?;
     }
 
     info!(
-        package = %format!("{SCOPE}/{PLUGIN}"),
+        package = %format!("{}/{}", id.scope, id.plugin),
         version = VERSION,
         targets = TARGETS.len(),
         out = %cli.out.display(),
         "generated npm publish tree",
     );
     Ok(())
+}
+
+/// Derive the package identity from `CARGO_PKG_REPOSITORY`.
+fn identity() -> Result<Identity> {
+    let path = REPOSITORY.trim_end_matches('/').trim_end_matches(".git");
+    let mut segments = path.rsplit('/');
+    let plugin = segments.next().unwrap_or_default();
+    let owner = segments.next().unwrap_or_default();
+    if owner.is_empty() || plugin.is_empty() {
+        return Err(Error::MissingRepository);
+    }
+    Ok(Identity {
+        scope: format!("@{owner}"),
+        plugin,
+        git_url: format!("git+{path}.git"),
+    })
+}
+
+/// First `CARGO_PKG_AUTHORS` entry parsed into (display, name, optional email).
+fn author() -> (&'static str, &'static str, Option<&'static str>) {
+    let full = AUTHORS.split(':').next().unwrap_or(AUTHORS).trim();
+    match full.split_once('<') {
+        Some((name, email)) => (full, name.trim(), Some(email.trim_end_matches('>').trim())),
+        None => (full, full, None),
+    }
 }
 
 /// `tools/npmgen` -> `tools` -> workspace root.
@@ -171,16 +209,7 @@ fn copy_file(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// First `CARGO_PKG_AUTHORS` entry parsed into (display, name, optional email).
-fn author() -> (&'static str, &'static str, Option<&'static str>) {
-    let full = AUTHORS.split(':').next().unwrap_or(AUTHORS).trim();
-    match full.split_once('<') {
-        Some((name, email)) => (full, name.trim(), Some(email.trim_end_matches('>').trim())),
-        None => (full, full, None),
-    }
-}
-
-fn write_meta(dir: &Path, root: &Path) -> Result<()> {
+fn write_meta(dir: &Path, root: &Path, id: &Identity) -> Result<()> {
     create_dir(dir)?;
 
     let (author_full, author_name, author_email) = author();
@@ -191,18 +220,18 @@ fn write_meta(dir: &Path, root: &Path) -> Result<()> {
 
     let optional: serde_json::Map<String, serde_json::Value> = TARGETS
         .iter()
-        .map(|t| (format!("{SCOPE}/{PLUGIN}-{}", t.key), json!(VERSION)))
+        .map(|t| (format!("{}/{}-{}", id.scope, id.plugin, t.key), json!(VERSION)))
         .collect();
 
     write_json(
         &dir.join("package.json"),
         &json!({
-            "name": format!("{SCOPE}/{PLUGIN}"),
+            "name": format!("{}/{}", id.scope, id.plugin),
             "version": VERSION,
             "description": DESCRIPTION,
             "license": "MIT",
             "author": author_full,
-            "repository": { "type": "git", "url": REPOSITORY },
+            "repository": { "type": "git", "url": id.git_url.as_str() },
             "files": [".claude-plugin", "hooks", "launch.mjs"],
             "optionalDependencies": optional,
             "publishConfig": { "access": "public" },
@@ -212,7 +241,7 @@ fn write_meta(dir: &Path, root: &Path) -> Result<()> {
     write_json(
         &dir.join(".claude-plugin").join("plugin.json"),
         &json!({
-            "name": PLUGIN,
+            "name": id.plugin,
             "version": VERSION,
             "description": DESCRIPTION,
             "author": plugin_author,
@@ -230,15 +259,16 @@ fn write_meta(dir: &Path, root: &Path) -> Result<()> {
     Ok(())
 }
 
-fn write_platform(out: &Path, target: &Target) -> Result<()> {
-    let dir = out.join(format!("{PLUGIN}-{}", target.key));
-    let binary = if target.windows { "nocmd.exe" } else { "nocmd" };
+fn write_platform(out: &Path, target: &Target, id: &Identity) -> Result<()> {
+    let dir = out.join(format!("{}-{}", id.plugin, target.key));
+    let ext = if target.windows { ".exe" } else { "" };
+    let binary = format!("{}{ext}", id.plugin);
     write_json(
         &dir.join("package.json"),
         &json!({
-            "name": format!("{SCOPE}/{PLUGIN}-{}", target.key),
+            "name": format!("{}/{}-{}", id.scope, id.plugin, target.key),
             "version": VERSION,
-            "description": format!("nocmd binary for {}.", target.key),
+            "description": format!("{} binary for {}.", id.plugin, target.key),
             "license": "MIT",
             "os": [target.os],
             "cpu": [target.cpu],

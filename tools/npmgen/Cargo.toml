@@ -1,10 +1,11 @@
 [package]
 name = "npmgen"
-description = "Generate the npm publish tree (meta + per-platform packages) for the nocmd plugin."
+description.workspace = true
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
 publish = false
 
 [dependencies]
