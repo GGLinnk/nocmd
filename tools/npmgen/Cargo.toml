@@ -1,6 +1,6 @@
 [package]
-name = "xtask"
-description = "Workspace packaging tasks for the nocmd Claude Code plugin."
+name = "npmgen"
+description = "Generate the npm publish tree (meta + per-platform packages) for the nocmd plugin."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,4 +9,4 @@ publish = false
 
 [dependencies]
 clap = { workspace = true }
-zip = "2"
+serde_json = { workspace = true }

@@ -12,40 +12,52 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            key: win32-x64
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
-          - os: macos-latest
-            target: aarch64-apple-darwin
+            key: win32-arm64
           - os: macos-13
             target: x86_64-apple-darwin
+            key: darwin-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            key: darwin-arm64
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
+            key: linux-x64
           - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
+            key: linux-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - name: Install musl tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --target ${{ matrix.target }} --package nocmd
       - name: Stage binary
         shell: bash
         run: |
-          mkdir -p staged
           ext=""
           [[ "${{ matrix.target }}" == *windows* ]] && ext=".exe"
-          cp "target/${{ matrix.target }}/release/nocmd$ext" "staged/nocmd-${{ matrix.target }}$ext"
+          mkdir -p staged
+          cp "target/${{ matrix.target }}/release/nocmd$ext" "staged/nocmd$ext"
       - uses: actions/upload-artifact@v4
         with:
-          name: bin-${{ matrix.target }}
+          name: pkg-${{ matrix.key }}
           path: staged/*
 
   publish:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -53,12 +65,18 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Assemble bin/
-        shell: bash
+      - name: Generate npm tree (version from Cargo, tag verified)
+        run: cargo run --quiet --package npmgen -- --tag "$GITHUB_REF_NAME" --out dist/npm
+      - name: Place binaries
         run: |
-          mkdir -p bin
-          find artifacts -type f -name 'nocmd-*' -exec cp {} bin/ \;
-          chmod +x bin/nocmd-* || true
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          for k in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64 linux-arm64; do
+            cp artifacts/pkg-$k/nocmd* "dist/npm/nocmd-$k/"
+            [ -f "dist/npm/nocmd-$k/nocmd" ] && chmod +x "dist/npm/nocmd-$k/nocmd" || true
+          done
+      - name: Publish platform packages
+        run: |
+          for k in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64 linux-arm64; do
+            (cd "dist/npm/nocmd-$k" && npm publish --access public)
+          done
+      - name: Publish meta package
+        run: cd dist/npm/nocmd && npm publish --access public
