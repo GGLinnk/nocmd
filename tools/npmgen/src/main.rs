@@ -30,12 +30,42 @@ struct Target {
 }
 
 const TARGETS: &[Target] = &[
-    Target { key: "win32-x64", os: "win32", cpu: "x64", windows: true },
-    Target { key: "win32-arm64", os: "win32", cpu: "arm64", windows: true },
-    Target { key: "darwin-x64", os: "darwin", cpu: "x64", windows: false },
-    Target { key: "darwin-arm64", os: "darwin", cpu: "arm64", windows: false },
-    Target { key: "linux-x64", os: "linux", cpu: "x64", windows: false },
-    Target { key: "linux-arm64", os: "linux", cpu: "arm64", windows: false },
+    Target {
+        key: "win32-x64",
+        os: "win32",
+        cpu: "x64",
+        windows: true,
+    },
+    Target {
+        key: "win32-arm64",
+        os: "win32",
+        cpu: "arm64",
+        windows: true,
+    },
+    Target {
+        key: "darwin-x64",
+        os: "darwin",
+        cpu: "x64",
+        windows: false,
+    },
+    Target {
+        key: "darwin-arm64",
+        os: "darwin",
+        cpu: "arm64",
+        windows: false,
+    },
+    Target {
+        key: "linux-x64",
+        os: "linux",
+        cpu: "x64",
+        windows: false,
+    },
+    Target {
+        key: "linux-arm64",
+        os: "linux",
+        cpu: "arm64",
+        windows: false,
+    },
 ];
 
 /// Package identity derived from the repository URL: the npm scope (`@owner`),
@@ -102,7 +132,9 @@ struct Cli {
 
 fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_target(false)
         .init();
 
@@ -116,7 +148,10 @@ fn run(cli: Cli) -> Result<()> {
     if let Some(tag) = &cli.tag {
         let expected = format!("v{VERSION}");
         if tag != &expected {
-            return Err(Error::TagMismatch { tag: tag.clone(), expected });
+            return Err(Error::TagMismatch {
+                tag: tag.clone(),
+                expected,
+            });
         }
         debug!(tag, version = VERSION, "tag matches workspace version");
     }
@@ -220,7 +255,12 @@ fn write_meta(dir: &Path, root: &Path, id: &Identity) -> Result<()> {
 
     let optional: serde_json::Map<String, serde_json::Value> = TARGETS
         .iter()
-        .map(|t| (format!("{}/{}-{}", id.scope, id.plugin, t.key), json!(VERSION)))
+        .map(|t| {
+            (
+                format!("{}/{}-{}", id.scope, id.plugin, t.key),
+                json!(VERSION),
+            )
+        })
         .collect();
 
     write_json(
