@@ -13,7 +13,6 @@
 pub mod config;
 pub mod detect;
 pub mod engine;
-pub mod groups;
 pub mod parse;
 pub mod redirect;
 

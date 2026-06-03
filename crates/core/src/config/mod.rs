@@ -15,6 +15,8 @@ use serde::Deserialize;
 
 use crate::redirect::{Redirect, Tool};
 
+pub mod groups;
+
 /// Condition under which a group (pack) is active.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Requires {
@@ -208,10 +210,10 @@ fn lint_group(name: &str, rg: &RawGroup, path: &Path, errs: &mut Vec<LoadError>)
 }
 
 impl Config {
-    /// The built-in groups, defined one-per-file under [`crate::groups`].
+    /// The built-in groups, defined one-per-file under [`groups`].
     pub fn builtin() -> Self {
         Config {
-            groups: crate::groups::builtins(),
+            groups: groups::builtins(),
         }
     }
 
