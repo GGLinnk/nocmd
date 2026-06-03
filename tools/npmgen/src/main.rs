@@ -16,7 +16,7 @@ use tracing_subscriber::EnvFilter;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const SCOPE: &str = "@gglinnk";
 const PLUGIN: &str = "nocmd";
-const AUTHOR: &str = "Gabriel GRONDIN";
+const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const REPOSITORY: &str = "git+https://github.com/gglinnk/nocmd.git";
 const DESCRIPTION: &str = "PreToolUse Bash hook that redirects discouraged shell commands to Claude's dedicated tools and to configured MCP servers.";
 
@@ -171,8 +171,23 @@ fn copy_file(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// First `CARGO_PKG_AUTHORS` entry parsed into (display, name, optional email).
+fn author() -> (&'static str, &'static str, Option<&'static str>) {
+    let full = AUTHORS.split(':').next().unwrap_or(AUTHORS).trim();
+    match full.split_once('<') {
+        Some((name, email)) => (full, name.trim(), Some(email.trim_end_matches('>').trim())),
+        None => (full, full, None),
+    }
+}
+
 fn write_meta(dir: &Path, root: &Path) -> Result<()> {
     create_dir(dir)?;
+
+    let (author_full, author_name, author_email) = author();
+    let plugin_author = match author_email {
+        Some(email) => json!({ "name": author_name, "email": email }),
+        None => json!({ "name": author_name }),
+    };
 
     let optional: serde_json::Map<String, serde_json::Value> = TARGETS
         .iter()
@@ -186,7 +201,7 @@ fn write_meta(dir: &Path, root: &Path) -> Result<()> {
             "version": VERSION,
             "description": DESCRIPTION,
             "license": "MIT",
-            "author": AUTHOR,
+            "author": author_full,
             "repository": { "type": "git", "url": REPOSITORY },
             "files": [".claude-plugin", "hooks", "launch.mjs"],
             "optionalDependencies": optional,
@@ -200,7 +215,7 @@ fn write_meta(dir: &Path, root: &Path) -> Result<()> {
             "name": PLUGIN,
             "version": VERSION,
             "description": DESCRIPTION,
-            "author": { "name": AUTHOR },
+            "author": plugin_author,
             "license": "MIT",
             "keywords": ["hook", "pretooluse", "bash", "mcp", "guard"],
         }),
